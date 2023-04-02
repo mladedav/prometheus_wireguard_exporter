@@ -52,7 +52,7 @@ jobs:
 
   create-release:
     runs-on: ubuntu-latest
-    if: github.event.ref_type == 'tag'
+    if: github.ref_type == 'tag'
     needs: ['build']
     outputs:
       upload_url: ${{ steps.release.outputs.upload_url }}
@@ -75,7 +75,7 @@ jobs:
 
   publish-release-assets:
     runs-on: ubuntu-latest
-    if: github.event.ref_type == 'tag'
+    if: github.ref_type == 'tag'
     needs: ['create-release']
 
     strategy:
