@@ -56,3 +56,74 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           asset_paths: '["prometheus_wireguard_exporter_${{ matrix.target }}"]'
+
+      - name: Upload release archive
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ${{ env.ASSET }}
+          asset_name: ${{ env.ASSET }}
+          asset_content_type: application/octet-stream
+
+  create-release:
+    runs-on: ubuntu-latest
+    if: github.event.ref_type == 'tag'
+    needs: ['build']
+    outputs:
+      upload_url: ${{ steps.release.outputs.upload_url }}
+      version: ${{ env.VERSION }}
+    steps:
+      - name: Get the release version from the tag
+        shell: bash
+        if: env.VERSION == ''
+        run: |
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          echo "version is: ${{ env.VERSION }}"
+      - name: Create GitHub release
+        id: release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.VERSION }}
+          release_name: ${{ env.VERSION }}
+
+  publish-release-assets:
+    runs-on: ubuntu-latest
+    if: github.event.ref_type == 'tag'
+    needs: ['create-release']
+
+    strategy:
+      matrix:
+        channel: [stable]
+        target:
+          # https://doc.rust-lang.org/nightly/rustc/platform-support.html
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - armv7-unknown-linux-gnueabihf # rpi
+
+          - x86_64-unknown-linux-musl
+          - aarch64-unknown-linux-musl
+          - armv7-unknown-linux-musleabihf # rpi
+
+          - x86_64-unknown-freebsd
+          # - aarch64-unknown-freebsd <- std not precompiled
+
+    steps:
+      - name: Get artifact name
+        run: echo "ASSET=prometheus_wireguard_exporter_${{ matrix.target }}" >> $GITHUB_ENV
+      - name: Download built artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: ${{ env.ASSET }}
+      - name: Upload release binary
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.release.outputs.upload_url }}
+          asset_path: ${{ env.ASSET }}
+          asset_name: ${{ env.ASSET }}
+          asset_content_type: application/octet-stream
